@@ -1,0 +1,1836 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rain Radar - 雨雲レーダー</title>
+
+    <!-- Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.css' rel='stylesheet' />
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* Time Dialogue - Top Left - 80% size - KRAKEN PURPLE */
+        #time-dialogue {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, rgba(27, 0, 52, 0.95), rgba(50, 0, 80, 0.95));
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transform: scale(0.8);
+            transform-origin: top left;
+        }
+
+        #time-display {
+            color: #fff;
+            font-size: 24px;
+            font-weight: 600;
+            text-shadow: 0 0 10px rgba(230, 0, 126, 0.5);
+        }
+
+        /* Debug console toggle button - KRAKEN COLORS */
+        #debug-toggle {
+            position: absolute;
+            top: 20px;
+            right: 80px;
+            background: linear-gradient(135deg, rgba(27, 0, 52, 0.95), rgba(50, 0, 80, 0.95));
+            color: #fff;
+            border: 1px solid rgba(230, 0, 126, 0.3);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 1002;
+            transition: all 0.3s;
+        }
+
+        #debug-toggle:hover {
+            background: linear-gradient(135deg, rgba(50, 0, 80, 0.95), rgba(80, 0, 120, 0.95));
+            box-shadow: 0 4px 15px rgba(230, 0, 126, 0.4);
+            border-color: rgba(230, 0, 126, 0.6);
+        }
+
+        /* Debug console */
+        #debug {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            background: rgba(27, 0, 52, 0.95);
+            color: #00D4AA;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 10px;
+            max-width: 450px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1001;
+            border-radius: 5px;
+            border: 1px solid rgba(230, 0, 126, 0.3);
+            display: none;
+        }
+
+        /* Legend - Left Side - 60% size (was 50%, now 20% larger) - KRAKEN PURPLE */
+        #legend {
+            position: absolute;
+            bottom: 180px;
+            left: 20px;
+            background: linear-gradient(135deg, rgba(27, 0, 52, 0.95), rgba(50, 0, 80, 0.95));
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 200px;
+            transform: scale(0.6);
+            transform-origin: bottom left;
+        }
+
+        #legend h3 {
+            color: #fff;
+            font-size: 16px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .legend-color {
+            width: 40px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .legend-label {
+            color: #fff;
+            font-size: 13px;
+            font-weight: 400;
+        }
+
+        /* Time Slider - Bottom LEFT - 40% width - KRAKEN PURPLE */
+        #slider-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 40%;
+            background: linear-gradient(0deg, rgba(27, 0, 52, 0.98), rgba(40, 0, 70, 0.95));
+            padding: 25px 30px 45px 30px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(230, 0, 126, 0.2);
+            border-radius: 15px;
+        }
+
+        #slider-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        #time-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: linear-gradient(90deg,
+                rgba(0, 212, 170, 0.3) 0%,
+                rgba(230, 0, 126, 0.4) 50%,
+                rgba(0, 212, 170, 0.3) 100%);
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            margin-bottom: 40px;
+        }
+
+        #time-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #E6007E, #FF1B8D);
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(230, 0, 126, 0.8), 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #time-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 25px rgba(230, 0, 126, 1), 0 6px 15px rgba(0, 0, 0, 0.6);
+        }
+
+        #time-slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #E6007E, #FF1B8D);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 15px rgba(230, 0, 126, 0.8), 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #time-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 25px rgba(230, 0, 126, 1), 0 6px 15px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Time markers (dots) container */
+        #time-markers {
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            right: 0;
+            height: 8px;
+            pointer-events: none;
+        }
+
+        .time-marker {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(230, 0, 126, 0.6);
+            top: 1px;
+            transform: translateX(-50%);
+            box-shadow: 0 0 4px rgba(230, 0, 126, 0.8);
+        }
+
+        .time-marker.special {
+            background: rgba(0, 212, 170, 0.8);
+            box-shadow: 0 0 6px rgba(0, 212, 170, 1);
+        }
+
+        /* Time labels below slider - WITH HORIZONTAL PADDING */
+        #time-labels {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            padding-top: 5px;
+            padding-left: 15px;
+            padding-right: 15px;
+        }
+
+        .time-label {
+            color: #fff;
+            font-size: 14px;
+            white-space: nowrap;
+            text-align: center;
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+
+        .time-label.highlight {
+            color: #E6007E;
+            font-weight: 600;
+        }
+
+        .time-label.special {
+            color: #00D4AA;
+            font-weight: 600;
+        }
+
+        /* Popup Styling - KRAKEN PURPLE */
+        .mapboxgl-popup {
+            pointer-events: none;
+        }
+
+        .mapboxgl-popup-content {
+            background: linear-gradient(135deg, rgba(27, 0, 52, 0.98), rgba(50, 0, 80, 0.98));
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(230, 0, 126, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .mapboxgl-popup-content strong {
+            color: #00D4AA;
+            font-size: 16px;
+        }
+
+        .mapboxgl-popup-content div {
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .popup-location {
+            color: #00D4AA !important;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .popup-temperature {
+            color: #FF8C00 !important;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .popup-temperature-time {
+            color: #aaa !important;
+            font-size: 11px;
+            font-style: italic;
+            margin-left: 5px;
+        }
+
+        .popup-description {
+            color: #E6007E !important;
+            font-style: italic;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+
+        .popup-forecast {
+            color: #00D4AA !important;
+            font-weight: 600;
+            margin-top: 10px;
+            font-size: 14px;
+            border-top: 1px solid rgba(0, 212, 170, 0.3);
+            padding-top: 8px;
+        }
+
+        .mapboxgl-popup-tip {
+            border-top-color: rgba(27, 0, 52, 0.98) !important;
+        }
+
+        /* Loading Indicator - KRAKEN PURPLE */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 18px;
+            z-index: 2000;
+            background: rgba(27, 0, 52, 0.95);
+            padding: 30px 50px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            display: none;
+            border: 1px solid rgba(230, 0, 126, 0.3);
+        }
+
+        .spinner {
+            border: 4px solid rgba(230, 0, 126, 0.2);
+            border-top: 4px solid #E6007E;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #time-dialogue {
+                top: 10px;
+                left: 10px;
+                padding: 12px 18px;
+            }
+
+            #time-display {
+                font-size: 18px;
+            }
+
+            #legend {
+                bottom: 200px;
+                left: 10px;
+                padding: 15px;
+                min-width: 150px;
+            }
+
+            #slider-container {
+                width: 60%;
+                padding: 20px 20px 45px 20px;
+            }
+
+            .time-label {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Debug Toggle Button -->
+    <button id="debug-toggle">Console</button>
+
+    <!-- Debug Console -->
+    <div id="debug"></div>
+
+    <!-- Time Dialogue -->
+    <div id="time-dialogue">
+        <div id="time-display">読み込み中...</div>
+    </div>
+
+    <!-- Legend -->
+    <div id="legend">
+        <h3>降水強度</h3>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(242, 242, 255, 0.9);"></div>
+            <div class="legend-label">0.05-1 mm/h</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(160, 210, 255, 0.9);"></div>
+            <div class="legend-label">1-5 mm/h</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(33, 140, 255, 0.9);"></div>
+            <div class="legend-label">5-10 mm/h</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(0, 65, 255, 0.9);"></div>
+            <div class="legend-label">10-20 mm/h</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(250, 245, 0, 0.9);"></div>
+            <div class="legend-label">20-30 mm/h</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(255, 153, 0, 0.9);"></div>
+            <div class="legend-label">30-50 mm/h</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(255, 40, 0, 0.9);"></div>
+            <div class="legend-label">50-80 mm/h</div>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(180, 0, 104, 0.9);"></div>
+            <div class="legend-label">80+ mm/h</div>
+        </div>
+    </div>
+
+    <!-- Time Slider - 40% width, bottom left -->
+    <div id="slider-container">
+        <div id="slider-wrapper">
+            <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
+            <div id="time-markers"></div>
+            <div id="time-labels"></div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <div>データを読み込んでいます...</div>
+    </div>
+
+    <script>
+        // Debug console state - START WITH CLOSED
+        let isDebugConsoleOpen = false;
+
+        // Debug logger - ONLY logs when console is open
+        function debugLog(message) {
+            // Skip logging if console is closed
+            if (!isDebugConsoleOpen) {
+                return;
+            }
+
+            const debugDiv = document.getElementById('debug');
+            const time = new Date().toLocaleTimeString();
+            debugDiv.innerHTML += `[${time}] ${message}<br>`;
+            debugDiv.scrollTop = debugDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // Toggle debug console
+        document.getElementById('debug-toggle').addEventListener('click', () => {
+            const debugDiv = document.getElementById('debug');
+            isDebugConsoleOpen = !isDebugConsoleOpen;
+
+            if (isDebugConsoleOpen) {
+                debugDiv.style.display = 'block';
+                debugLog('========== DEBUG CONSOLE OPENED ==========');
+                debugLog('Console is now collecting logs');
+            } else {
+                debugLog('========== DEBUG CONSOLE CLOSING ==========');
+                debugLog('Console will stop collecting logs');
+                debugDiv.style.display = 'none';
+            }
+        });
+
+        // Mapbox Access Token
+        mapboxgl.accessToken = 'pk.eyJ1IjoiMTBkYTAzMnkiLCJhIjoiY2w4anhvb3htMDg0ZTNvcnB5MnJnM3k2OSJ9.vojEbTMeqVWxUlbctEdW4g';
+
+        // Create STEP expression - EXACT RGB values
+        const rasterColorExpression = [
+            'step',
+            ['raster-value'],
+
+            'rgba(0, 0, 0, 0)',              // < 0.05: transparent
+
+            0.05,  'rgba(242, 242, 255, 0.9)',  // 0.05-0.99
+            0.99,  'rgba(160, 210, 255, 0.9)',  // 0.99-4.99
+            4.99,  'rgba(33, 140, 255, 0.9)',   // 4.99-9.99
+            9.99,  'rgba(0, 65, 255, 0.9)',     // 9.99-19.99
+            19.99, 'rgba(250, 245, 0, 0.9)',    // 19.99-29.99
+            29.99, 'rgba(255, 153, 0, 0.9)',    // 29.99-49.99
+            49.99, 'rgba(255, 40, 0, 0.9)',     // 49.99-79.99
+            79.99, 'rgba(180, 0, 104, 0.9)'     // 79.99+
+        ];
+
+        // Tileset configurations - STRICT ORDER
+        const tilesets = [
+            {
+                id: 'mapbox.weather-jp-nowcast-last-60m',
+                name: 'Past 60min',
+                timeRange: '過去60分〜5分前',
+                order: 1
+            },
+            {
+                id: 'mapbox.weather-jp-nowcast',
+                name: 'Nowcast',
+                timeRange: '現在〜60分後',
+                order: 2
+            },
+            {
+                id: 'mapbox.weather-jp-rain-1-6',
+                name: '1-6 Hour',
+                timeRange: '1〜6時間後',
+                order: 3
+            },
+            {
+                id: 'mapbox.weather-jp-rain-7-15',
+                name: '7-15 Hour',
+                timeRange: '7〜15時間後',
+                order: 4
+            }
+        ];
+
+        // Temperature tileset
+        const TEMPERATURE_TILESET_ID = 'mapbox.weather-jp-temperature-0-39';
+
+        // Global variables
+        let map;
+        let allBands = [];
+        let currentBandIndex = 0;
+        let popup = null;
+        let currentLayerName = 'precipitation';
+        let nowcastStartIndex = -1;
+        let temperatureDebounceTimer = null;
+        let futureForecastDebounceTimer = null;
+        let currentVisibleTilesetId = null;
+        let temperatureBands = []; // Store temperature bands from TileJSON
+
+        // Movement thresholds for API calls
+        const GEOCODING_THRESHOLD = 0.01;  // 1km for geocoding
+        const TEMPERATURE_THRESHOLD = 0.03; // 3km for temperature
+        const FUTURE_FORECAST_THRESHOLD = 0.01; // 1km for future forecast
+
+        let lastGeocodingLng = null;
+        let lastGeocodingLat = null;
+        let lastTemperatureLng = null;
+        let lastTemperatureLat = null;
+        let lastFutureForecastLng = null;
+        let lastFutureForecastLat = null;
+        let lastCityName = null;
+
+        // Cache for geocoding and temperature results
+        let geocodingCache = new Map();
+        let temperatureCache = new Map();
+
+        // Initialize map with maxTileCacheSize
+        map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/10da032y/cmipgs72400ek01st2dn15z3e',
+            center: [139.7, 35.7],
+            zoom: 8,
+            projection: 'mercator',
+            // maxTileCacheSize: 12
+        });
+
+        // Convert UNIX timestamp to JST formatted string
+        function unixToJST(unixTimestamp) {
+            const date = new Date(unixTimestamp * 1000);
+            const jstOffset = 9 * 60;
+            const jstDate = new Date(date.getTime() + jstOffset * 60 * 1000);
+
+            const year = jstDate.getUTCFullYear();
+            const month = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(jstDate.getUTCDate()).padStart(2, '0');
+            const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+            const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+
+            return `${year}年${month}月${day}日 ${hours}:${minutes}`;
+        }
+
+        // Convert UNIX timestamp to short JST format (HH:MM)
+        function unixToShortJST(unixTimestamp) {
+            const date = new Date(unixTimestamp * 1000);
+            const jstOffset = 9 * 60;
+            const jstDate = new Date(date.getTime() + jstOffset * 60 * 1000);
+
+            const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+            const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+
+            return `${hours}:${minutes}`;
+        }
+
+        // Calculate distance between two coordinates
+        function calculateDistance(lng1, lat1, lng2, lat2) {
+            const lngDiff = lng1 - lng2;
+            const latDiff = lat1 - lat2;
+            return Math.sqrt(lngDiff * lngDiff + latDiff * latDiff);
+        }
+
+        // Check if mouse has moved more than threshold for geocoding
+        function hasMovedBeyondGeocodingThreshold(lng, lat) {
+            if (lastGeocodingLng === null || lastGeocodingLat === null) {
+                return true;
+            }
+
+            const distance = calculateDistance(lng, lat, lastGeocodingLng, lastGeocodingLat);
+            return distance >= GEOCODING_THRESHOLD;
+        }
+
+        // Check if mouse has moved more than threshold for temperature
+        function hasMovedBeyondTemperatureThreshold(lng, lat) {
+            if (lastTemperatureLng === null || lastTemperatureLat === null) {
+                return true;
+            }
+
+            const distance = calculateDistance(lng, lat, lastTemperatureLng, lastTemperatureLat);
+            return distance >= TEMPERATURE_THRESHOLD;
+        }
+
+        // Check if mouse has moved more than threshold for future forecast
+        function hasMovedBeyondFutureForecastThreshold(lng, lat) {
+            if (lastFutureForecastLng === null || lastFutureForecastLat === null) {
+                return true;
+            }
+
+            const distance = calculateDistance(lng, lat, lastFutureForecastLng, lastFutureForecastLat);
+            return distance >= FUTURE_FORECAST_THRESHOLD;
+        }
+
+        // Get city name from coordinates using Mapbox Geocoding API v6
+        async function getCityName(lng, lat) {
+            const cacheKey = `${lng.toFixed(2)},${lat.toFixed(2)}`;
+
+            if (geocodingCache.has(cacheKey)) {
+                debugLog(`Geocoding cache HIT for ${cacheKey}`);
+                return geocodingCache.get(cacheKey);
+            }
+
+            try {
+                const url = `https://api.mapbox.com/search/geocode/v6/reverse?longitude=${lng}&latitude=${lat}&language=ja&country=JP&types=place&access_token=${mapboxgl.accessToken}`;
+
+                debugLog(`========== GEOCODING API REQUEST (1km threshold) ==========`);
+                debugLog(`Coordinates: lng=${lng}, lat=${lat}`);
+                debugLog(`==========================================`);
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.features && data.features.length > 0) {
+                    const cityName = data.features[0].properties.name || data.features[0].properties.place_formatted || '不明';
+                    geocodingCache.set(cacheKey, cityName);
+                    debugLog(`Geocoding result: ${cityName}`);
+                    return cityName;
+                } else {
+                    return '不明';
+                }
+            } catch (error) {
+                debugLog(`Geocoding error: ${error.message}`);
+                console.error('Geocoding error:', error);
+                return '不明';
+            }
+        }
+
+        // Load temperature bands from TileJSON
+        async function loadTemperatureBands() {
+            try {
+                const url = `https://api.mapbox.com/v4/${TEMPERATURE_TILESET_ID}.json?secure&access_token=${mapboxgl.accessToken}`;
+
+                debugLog(`========== LOADING TEMPERATURE TILEJSON ==========`);
+                debugLog(`URL: ${url}`);
+
+                const response = await fetch(url);
+                const metadata = await response.json();
+
+                if (metadata.raster_layers && metadata.raster_layers.length > 0) {
+                    const layer = metadata.raster_layers[0];
+                    let bands = [];
+
+                    if (layer.bands && Array.isArray(layer.bands)) {
+                        bands = layer.bands;
+                    } else if (layer.fields && layer.fields.bands && Array.isArray(layer.fields.bands)) {
+                        bands = layer.fields.bands;
+                    }
+
+                    temperatureBands = bands
+                        .map(b => {
+                            if (typeof b === 'object' && b.band_id) {
+                                return parseInt(b.band_id);
+                            } else if (typeof b === 'string' || typeof b === 'number') {
+                                return parseInt(b);
+                            }
+                            return NaN;
+                        })
+                        .filter(b => !isNaN(b))
+                        .sort((a, b) => a - b);
+
+                    debugLog(`✓ Temperature bands loaded: ${temperatureBands.length} bands`);
+                    debugLog(`  Range: ${temperatureBands[0]} to ${temperatureBands[temperatureBands.length - 1]}`);
+                    debugLog(`  Sample: [${temperatureBands.slice(0, 5).join(', ')}, ..., ${temperatureBands.slice(-3).join(', ')}]`);
+                    debugLog(`==========================================`);
+                } else {
+                    debugLog(`✗ No raster layers found in TileJSON`);
+                }
+            } catch (error) {
+                debugLog(`========== TILEJSON LOAD ERROR ==========`);
+                debugLog(`Error: ${error.message}`);
+                debugLog(`==========================================`);
+                console.error('Error loading temperature TileJSON:', error);
+            }
+        }
+
+// Validate all bands are queryable - COMPREHENSIVE CHECK
+        async function validateAllBands() {
+            debugLog(`========== VALIDATING ALL BANDS ==========`);
+            debugLog(`Total bands to validate: ${allBands.length}`);
+            debugLog(`Starting validation at: ${new Date().toLocaleTimeString()}`);
+
+            const center = map.getCenter();
+            const validationResults = {
+                total: allBands.length,
+                successful: 0,
+                failed: 0,
+                nullValues: 0,
+                errors: 0,
+                byTileset: {},
+                failedBands: []
+            };
+
+            // Initialize tileset counters
+            tilesets.forEach(tileset => {
+                validationResults.byTileset[tileset.id] = {
+                    name: tileset.name,
+                    total: 0,
+                    successful: 0,
+                    failed: 0,
+                    nullValues: 0,
+                    errors: 0
+                };
+            });
+
+            // Group bands by tileset
+            const bandsByTileset = {};
+            allBands.forEach((band, index) => {
+                if (!bandsByTileset[band.tilesetId]) {
+                    bandsByTileset[band.tilesetId] = [];
+                }
+                bandsByTileset[band.tilesetId].push({ ...band, globalIndex: index });
+            });
+
+            debugLog(`Bands grouped into ${Object.keys(bandsByTileset).length} tilesets`);
+
+            // Validate each tileset
+            for (const [tilesetId, bands] of Object.entries(bandsByTileset)) {
+                const layerId = `rain-layer-${tilesetId}`;
+                const sourceId = `rain-source-${tilesetId}`;
+                const tilesetName = tilesets.find(t => t.id === tilesetId)?.name || tilesetId;
+
+                debugLog(`\n--- Validating ${tilesetName} (${bands.length} bands) ---`);
+
+                const wasVisible = map.getLayoutProperty(layerId, 'visibility') === 'visible';
+
+                if (!wasVisible) {
+                    map.setLayoutProperty(layerId, 'visibility', 'visible');
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+
+                for (let i = 0; i < bands.length; i++) {
+                    const band = bands[i];
+                    validationResults.byTileset[tilesetId].total++;
+
+                    try {
+                        const rasterResult = await map.queryRasterValue(
+                            sourceId,
+                            center,
+                            {
+                                layerName: 'precipitation',
+                                bands: [band.bandId.toString()]
+                            }
+                        );
+
+                        if (rasterResult && rasterResult.precipitation && rasterResult.precipitation[band.bandId.toString()]) {
+                            const bandData = rasterResult.precipitation[band.bandId.toString()];
+
+                            if (bandData && bandData.length > 0) {
+                                const value = bandData[0];
+
+                                if (value !== null && value !== undefined) {
+                                    validationResults.successful++;
+                                    validationResults.byTileset[tilesetId].successful++;
+                                    debugLog(`  ✓ [${i + 1}/${bands.length}] Band ${band.bandId} (${unixToShortJST(band.bandId)}): ${value.toFixed(2)} mm/h`);
+                                } else {
+                                    validationResults.failed++;
+                                    validationResults.nullValues++;
+                                    validationResults.byTileset[tilesetId].failed++;
+                                    validationResults.byTileset[tilesetId].nullValues++;
+                                    validationResults.failedBands.push({
+                                        tileset: tilesetName,
+                                        bandId: band.bandId,
+                                        time: unixToShortJST(band.bandId),
+                                        globalIndex: band.globalIndex,
+                                        reason: 'null value'
+                                    });
+                                    debugLog(`  ✗ [${i + 1}/${bands.length}] Band ${band.bandId}: NULL VALUE`);
+                                }
+                            } else {
+                                validationResults.failed++;
+                                validationResults.byTileset[tilesetId].failed++;
+                                validationResults.failedBands.push({
+                                    tileset: tilesetName,
+                                    bandId: band.bandId,
+                                    time: unixToShortJST(band.bandId),
+                                    globalIndex: band.globalIndex,
+                                    reason: 'empty data'
+                                });
+                                debugLog(`  ✗ [${i + 1}/${bands.length}] Band ${band.bandId}: EMPTY DATA`);
+                            }
+                        } else {
+                            validationResults.failed++;
+                            validationResults.byTileset[tilesetId].failed++;
+                            validationResults.failedBands.push({
+                                tileset: tilesetName,
+                                bandId: band.bandId,
+                                time: unixToShortJST(band.bandId),
+                                globalIndex: band.globalIndex,
+                                reason: 'no result'
+                            });
+                            debugLog(`  ✗ [${i + 1}/${bands.length}] Band ${band.bandId}: NO RESULT`);
+                        }
+
+                    } catch (error) {
+                        validationResults.failed++;
+                        validationResults.errors++;
+                        validationResults.byTileset[tilesetId].failed++;
+                        validationResults.byTileset[tilesetId].errors++;
+                        validationResults.failedBands.push({
+                            tileset: tilesetName,
+                            bandId: band.bandId,
+                            time: unixToShortJST(band.bandId),
+                            globalIndex: band.globalIndex,
+                            reason: `error: ${error.message}`
+                        });
+                        debugLog(`  ✗ [${i + 1}/${bands.length}] Band ${band.bandId}: ERROR`);
+                    }
+                }
+
+                if (!wasVisible) {
+                    map.setLayoutProperty(layerId, 'visibility', 'none');
+                }
+            }
+
+            // Print summary
+            debugLog(`\n========== VALIDATION SUMMARY ==========`);
+            debugLog(`Total: ${validationResults.total} | Success: ${validationResults.successful} ✓ | Failed: ${validationResults.failed} ✗`);
+            debugLog(`Success rate: ${((validationResults.successful / validationResults.total) * 100).toFixed(1)}%`);
+
+            debugLog(`\n--- BY TILESET ---`);
+            Object.entries(validationResults.byTileset).forEach(([tilesetId, stats]) => {
+                const rate = stats.total > 0 ? ((stats.successful / stats.total) * 100).toFixed(1) : '0.0';
+                debugLog(`${stats.name}: ${stats.successful}/${stats.total} (${rate}%)`);
+            });
+
+            if (validationResults.failedBands.length > 0) {
+                debugLog(`\n--- FAILED BANDS ---`);
+                validationResults.failedBands.forEach((band, idx) => {
+                    debugLog(`[${idx + 1}] ${band.tileset} | Band ${band.bandId} | ${band.reason}`);
+                });
+            }
+
+            debugLog(`==========================================\n`);
+            console.log('VALIDATION_RESULTS:', JSON.stringify(validationResults, null, 2));
+
+            return validationResults;
+        }
+
+        // Validate single band
+        async function validateSingleBand(bandIndex) {
+            if (bandIndex < 0 || bandIndex >= allBands.length) {
+                debugLog(`Invalid band index: ${bandIndex}`);
+                return null;
+            }
+
+            const band = allBands[bandIndex];
+            const layerId = `rain-layer-${band.tilesetId}`;
+            const sourceId = `rain-source-${band.tilesetId}`;
+            const center = map.getCenter();
+
+            debugLog(`Validating: ${band.tilesetName} | Band ${band.bandId}`);
+
+            const wasVisible = map.getLayoutProperty(layerId, 'visibility') === 'visible';
+
+            if (!wasVisible) {
+                map.setLayoutProperty(layerId, 'visibility', 'visible');
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+
+            try {
+                const rasterResult = await map.queryRasterValue(sourceId, center, {
+                    layerName: 'precipitation',
+                    bands: [band.bandId.toString()]
+                });
+
+                if (rasterResult && rasterResult.precipitation && rasterResult.precipitation[band.bandId.toString()]) {
+                    const bandData = rasterResult.precipitation[band.bandId.toString()];
+
+                    if (bandData && bandData.length > 0) {
+                        const value = bandData[0];
+
+                        if (value !== null && value !== undefined) {
+                            debugLog(`✓ SUCCESS: ${value.toFixed(2)} mm/h`);
+                            if (!wasVisible) map.setLayoutProperty(layerId, 'visibility', 'none');
+                            return { success: true, value: value };
+                        }
+                    }
+                }
+
+                debugLog(`✗ FAILED`);
+                if (!wasVisible) map.setLayoutProperty(layerId, 'visibility', 'none');
+                return { success: false, reason: 'no data' };
+
+            } catch (error) {
+                debugLog(`✗ ERROR: ${error.message}`);
+                if (!wasVisible) map.setLayoutProperty(layerId, 'visibility', 'none');
+                return { success: false, reason: error.message };
+            }
+        }
+
+        // Make functions globally accessible
+        window.validateAllBands = validateAllBands;
+        window.validateSingleBand = validateSingleBand;
+        window.validateCurrentBand = async function() {
+            return await validateSingleBand(currentBandIndex);
+        };
+
+
+        // Find closest temperature band to target band
+        function findClosestTemperatureBand(targetBandId) {
+            if (temperatureBands.length === 0) {
+                debugLog(`⚠️ No temperature bands available, returning target: ${targetBandId}`);
+                return targetBandId;
+            }
+
+            let closest = temperatureBands[0];
+            let minDiff = Math.abs(targetBandId - closest);
+
+            for (const band of temperatureBands) {
+                const diff = Math.abs(targetBandId - band);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = band;
+                }
+
+                if (diff === 0) break;
+            }
+
+            debugLog(`🎯 Closest band: target=${targetBandId}, closest=${closest}, diff=${minDiff}`);
+            return closest;
+        }
+
+        // Get temperature from Tilequery API with band filtering
+        async function getTemperature(lng, lat, targetBandId) {
+            const closestBandId = findClosestTemperatureBand(targetBandId);
+
+            const cacheKey = `${lng.toFixed(3)},${lat.toFixed(3)},${closestBandId}`;
+
+            if (temperatureCache.has(cacheKey)) {
+                debugLog(`Temperature cache HIT for ${cacheKey}`);
+                return temperatureCache.get(cacheKey);
+            }
+
+            try {
+                const url = `https://api.mapbox.com/v4/${TEMPERATURE_TILESET_ID}/tilequery/${lng},${lat}.json?layers=temperature&bands=${closestBandId}&access_token=${mapboxgl.accessToken}`;
+
+                debugLog(`========== OPTIMIZED TILEQUERY API REQUEST (3km threshold) ==========`);
+                debugLog(`Full URL: ${url}`);
+                debugLog(`Coordinates: lng=${lng}, lat=${lat}`);
+                debugLog(`Target Band ID: ${targetBandId}`);
+                debugLog(`Querying Band ID: ${closestBandId} (closest available)`);
+                debugLog(`==========================================`);
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                debugLog(`========== TILEQUERY API RESPONSE ==========`);
+                debugLog(`Status: ${response.status} ${response.statusText}`);
+                debugLog(`Features count: ${data.features ? data.features.length : 0}`);
+                debugLog(`==========================================`);
+
+                if (data.features && data.features.length > 0) {
+                    debugLog(`Temperature features found: ${data.features.length}`);
+
+                    const feature = data.features[0];
+
+                    if (feature.properties &&
+                        feature.properties.tilequery &&
+                        feature.properties.tilequery.band) {
+
+                        const bandId = parseInt(feature.properties.tilequery.band);
+                        const tempValue = feature.properties.val && feature.properties.val.length > 0
+                            ? feature.properties.val[0]
+                            : null;
+
+                        debugLog(`Feature: band=${bandId}, temp=${tempValue}`);
+
+                        if (tempValue !== null && tempValue !== undefined) {
+                            const result = {
+                                value: tempValue,
+                                bandId: bandId,
+                                time: unixToShortJST(bandId)
+                            };
+                            debugLog(`✓ Temperature result: ${result.value}°C at band ${result.bandId} (${result.time})`);
+                            temperatureCache.set(cacheKey, result);
+                            return result;
+                        } else {
+                            debugLog('Temperature: No valid temperature value in feature');
+                        }
+                    }
+                } else {
+                    debugLog('Temperature: No features in response');
+                }
+
+                return null;
+            } catch (error) {
+                debugLog(`========== TILEQUERY API ERROR ==========`);
+                debugLog(`Error: ${error.message}`);
+                debugLog(`Stack: ${error.stack}`);
+                debugLog(`==========================================`);
+                console.error('Temperature query error:', error);
+                return null;
+            }
+        }
+
+        // Query future precipitation forecast - OPTIMIZED TILE LOADING
+        async function queryFutureForecast(lng, lat, currentIndex) {
+            debugLog(`========== QUERYING FUTURE FORECAST (OPTIMIZED) ==========`);
+            debugLog(`Current index: ${currentIndex}`);
+            debugLog(`Coordinates: lng=${lng.toFixed(4)}, lat=${lat.toFixed(4)}`);
+
+            // Get all future bands from current position onwards (excluding Past 60min)
+            const futureBands = allBands.filter((band, index) =>
+                index >= currentIndex &&
+                band.tilesetId !== 'mapbox.weather-jp-nowcast-last-60m'
+            );
+
+            // Group bands by tileset to minimize visibility toggles
+            const bandsByTileset = {};
+            futureBands.forEach(band => {
+                if (!bandsByTileset[band.tilesetId]) {
+                    bandsByTileset[band.tilesetId] = [];
+                }
+                bandsByTileset[band.tilesetId].push(band);
+            });
+
+            debugLog(`📊 Future bands grouped into ${Object.keys(bandsByTileset).length} tilesets`);
+            Object.entries(bandsByTileset).forEach(([tilesetId, bands]) => {
+                const tilesetName = tilesets.find(t => t.id === tilesetId)?.name || tilesetId;
+                debugLog(`  - ${tilesetName}: ${bands.length} bands`);
+            });
+
+            let totalPrecipitation = 0;
+            let successfulQueries = 0;
+            let failedQueries = 0;
+            const queryResults = [];
+
+            // Query each tileset (minimize visibility toggles)
+            for (const [tilesetId, bands] of Object.entries(bandsByTileset)) {
+                const layerId = `rain-layer-${tilesetId}`;
+                const sourceId = `rain-source-${tilesetId}`;
+                const tilesetName = tilesets.find(t => t.id === tilesetId)?.name || tilesetId;
+
+                // Check if layer is currently visible
+                const wasVisible = map.getLayoutProperty(layerId, 'visibility') === 'visible';
+
+                if (!wasVisible) {
+                    debugLog(`🔄 Making ${tilesetName} visible for queries...`);
+                    map.setLayoutProperty(layerId, 'visibility', 'visible');
+                    // Wait for tiles to load (only ONCE per tileset)
+                    await new Promise(resolve => setTimeout(resolve, 150));
+                }
+
+                // Query all bands from this tileset
+                for (let i = 0; i < bands.length; i++) {
+                    const band = bands[i];
+
+                    try {
+                        const rasterResult = await map.queryRasterValue(
+                            sourceId,
+                            { lng, lat },
+                            {
+                                layerName: 'precipitation',
+                                bands: [band.bandId.toString()]
+                            }
+                        );
+
+                        if (rasterResult &&
+                            rasterResult.precipitation &&
+                            rasterResult.precipitation[band.bandId.toString()]) {
+
+                            const bandData = rasterResult.precipitation[band.bandId.toString()];
+                            if (bandData && bandData.length > 0) {
+                                const value = bandData[0];
+                                if (value !== null && value !== undefined) {
+                                    totalPrecipitation += value;
+                                    successfulQueries++;
+                                    queryResults.push({
+                                        tileset: tilesetName,
+                                        bandId: band.bandId,
+                                        value: value,
+                                        status: '✓'
+                                    });
+                                } else {
+                                    failedQueries++;
+                                    queryResults.push({
+                                        tileset: tilesetName,
+                                        bandId: band.bandId,
+                                        value: null,
+                                        status: '✗ (null value)'
+                                    });
+                                }
+                            } else {
+                                failedQueries++;
+                                queryResults.push({
+                                    tileset: tilesetName,
+                                    bandId: band.bandId,
+                                    value: null,
+                                    status: '✗ (empty data)'
+                                });
+                            }
+                        } else {
+                            failedQueries++;
+                            queryResults.push({
+                                tileset: tilesetName,
+                                bandId: band.bandId,
+                                value: null,
+                                status: '✗ (no result)'
+                            });
+                        }
+                    } catch (error) {
+                        failedQueries++;
+                        queryResults.push({
+                            tileset: tilesetName,
+                            bandId: band.bandId,
+                            value: null,
+                            status: `✗ (error: ${error.message})`
+                        });
+                        debugLog(`  ❌ Error querying band ${band.bandId}: ${error.message}`);
+                    }
+                }
+
+                // Restore visibility if it wasn't visible before
+                if (!wasVisible) {
+                    debugLog(`🔄 Hiding ${tilesetName} again...`);
+                    map.setLayoutProperty(layerId, 'visibility', 'none');
+                }
+            }
+
+            // Summary
+            debugLog(`📈 QUERY SUMMARY:`);
+            debugLog(`  Total bands: ${futureBands.length}`);
+            debugLog(`  Successful: ${successfulQueries} ✓`);
+            debugLog(`  Failed: ${failedQueries} ✗`);
+            debugLog(`  Success rate: ${((successfulQueries / futureBands.length) * 100).toFixed(1)}%`);
+            debugLog(`  Total precipitation: ${totalPrecipitation.toFixed(2)} mm/h`);
+
+            // Detailed results
+            debugLog(`📋 DETAILED RESULTS:`);
+            queryResults.forEach((result, idx) => {
+                const valueStr = result.value !== null ? `${result.value.toFixed(2)} mm/h` : 'N/A';
+                const time = unixToShortJST(result.bandId);
+                debugLog(`  [${idx + 1}/${futureBands.length}] ${result.status} ${result.tileset} | Band ${result.bandId} (${time}) | ${valueStr}`);
+            });
+
+            debugLog(`==========================================`);
+
+            return totalPrecipitation;
+        }
+
+        // Check if rain stops within next 3 bands - OPTIMIZED TILE LOADING
+        async function checkRainStopsWithin3Bands(lng, lat, currentIndex) {
+            // Get next 3 bands from current position
+            const next3Bands = [];
+            for (let i = 1; i <= 3; i++) {
+                const nextIndex = currentIndex + i;
+                if (nextIndex < allBands.length) {
+                    next3Bands.push(allBands[nextIndex]);
+                }
+            }
+
+            if (next3Bands.length === 0) {
+                debugLog(`⚠️ No next 3 bands available`);
+                return false;
+            }
+
+            debugLog(`🔍 Checking next 3 bands for rain stop (OPTIMIZED)...`);
+
+            // Group by tileset
+            const tilesetGroups = {};
+            next3Bands.forEach(band => {
+                if (!tilesetGroups[band.tilesetId]) {
+                    tilesetGroups[band.tilesetId] = [];
+                }
+                tilesetGroups[band.tilesetId].push(band);
+            });
+
+            debugLog(`  Grouped into ${Object.keys(tilesetGroups).length} tilesets`);
+
+            // Query each tileset group
+            for (const [tilesetId, bands] of Object.entries(tilesetGroups)) {
+                const layerId = `rain-layer-${tilesetId}`;
+                const sourceId = `rain-source-${tilesetId}`;
+                const tilesetName = tilesets.find(t => t.id === tilesetId)?.name || tilesetId;
+                const wasVisible = map.getLayoutProperty(layerId, 'visibility') === 'visible';
+
+                if (!wasVisible) {
+                    debugLog(`🔄 Making ${tilesetName} visible for rain stop check...`);
+                    map.setLayoutProperty(layerId, 'visibility', 'visible');
+                    await new Promise(resolve => setTimeout(resolve, 150));
+                }
+
+                for (let i = 0; i < bands.length; i++) {
+                    const band = bands[i];
+
+                    try {
+                        const rasterResult = await map.queryRasterValue(
+                            sourceId,
+                            { lng, lat },
+                            {
+                                layerName: 'precipitation',
+                                bands: [band.bandId.toString()]
+                            }
+                        );
+
+                        debugLog(`  Checking ${tilesetName} | Band ${band.bandId}`);
+
+                        if (rasterResult &&
+                            rasterResult.precipitation &&
+                            rasterResult.precipitation[band.bandId.toString()]) {
+
+                            const bandData = rasterResult.precipitation[band.bandId.toString()];
+                            if (bandData && bandData.length > 0) {
+                                const value = bandData[0];
+                                debugLog(`    Result: ${value !== null ? value.toFixed(2) + ' mm/h' : 'null'}`);
+
+                                if (value !== null && value !== undefined && value !== 0) {
+                                    // Found rain in next 3 bands
+                                    if (!wasVisible) {
+                                        map.setLayoutProperty(layerId, 'visibility', 'none');
+                                    }
+                                    debugLog(`  ❌ Rain found: ${value} mm/h - will NOT stop soon`);
+                                    return false;
+                                }
+                            } else {
+                                debugLog(`    Result: empty data`);
+                            }
+                        } else {
+                            debugLog(`    Result: no data`);
+                        }
+                    } catch (error) {
+                        debugLog(`  ❌ Error checking band ${band.bandId}: ${error.message}`);
+                    }
+                }
+
+                if (!wasVisible) {
+                    debugLog(`🔄 Hiding ${tilesetName} again...`);
+                    map.setLayoutProperty(layerId, 'visibility', 'none');
+                }
+            }
+
+            debugLog(`  ✓ All next 3 bands have no rain - will stop soon!`);
+            return true;
+        }
+
+        // Get time label for slider based on band index (FIXED HOUR CALCULATION)
+        function getTimeLabel(index) {
+            if (index < 0 || index >= allBands.length) return '';
+
+            if (nowcastStartIndex === -1) return '';
+
+            const relativePosition = index - nowcastStartIndex;
+
+            if (relativePosition === 0) {
+                return '現在';
+            } else if (relativePosition < 0) {
+                const minutesAgo = Math.abs(relativePosition) * 5;
+                return `${minutesAgo}分前`;
+            } else if (relativePosition > 0 && relativePosition <= 12) {
+                const minutesLater = relativePosition * 5;
+                return `${minutesLater}分後`;
+            } else {
+                // FIXED: Remove the +1
+                const hoursLater = relativePosition - 12;
+                return `${hoursLater}`;
+            }
+        }
+
+        // Get time category for time dialogue
+        function getTimeCategory(index) {
+            if (index < 0 || index >= allBands.length) return '';
+
+            if (nowcastStartIndex === -1) return '';
+
+            const relativePosition = index - nowcastStartIndex;
+
+            if (relativePosition === 0) {
+                return '（現在）';
+            } else if (relativePosition < 0) {
+                return '（過去）';
+            } else {
+                return '（予想）';
+            }
+        }
+
+        // Create time markers (dots) and labels - NEW: 4 SPECIFIC LABELS
+        function createTimeLabels() {
+            const labelsContainer = document.getElementById('time-labels');
+            const markersContainer = document.getElementById('time-markers');
+            labelsContainer.innerHTML = '';
+            markersContainer.innerHTML = '';
+
+            if (allBands.length === 0 || nowcastStartIndex === -1) return;
+
+            // Create markers (dots) for all bands
+            allBands.forEach((band, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'time-marker';
+
+                // Highlight special positions
+                if (index === 0 ||
+                    index === nowcastStartIndex ||
+                    index === allBands.length - 1) {
+                    marker.classList.add('special');
+                }
+
+                marker.style.left = `${(index / (allBands.length - 1)) * 100}%`;
+                markersContainer.appendChild(marker);
+            });
+
+            // Find the 4 label positions
+            const labelPositions = [];
+
+            // 1. First band of Past 60min (oldest)
+            if (allBands.length > 0) {
+                labelPositions.push({
+                    index: 0,
+                    text: unixToShortJST(allBands[0].bandId),
+                    type: 'past'
+                });
+                debugLog(`Label 1: Index 0 - ${unixToShortJST(allBands[0].bandId)} (Past 60min oldest)`);
+            }
+
+            // 2. "現在" (Present) - First band of Nowcast
+            if (nowcastStartIndex >= 0) {
+                labelPositions.push({
+                    index: nowcastStartIndex,
+                    text: '現在',
+                    type: 'present'
+                });
+                debugLog(`Label 2: Index ${nowcastStartIndex} - 現在 (Nowcast first)`);
+            }
+
+            // 3. First band of 1-6 Hour tileset (after duplicate removal)
+            const oneToSixHourIndex = allBands.findIndex(b => b.tilesetId === 'mapbox.weather-jp-rain-1-6');
+            if (oneToSixHourIndex >= 0) {
+                labelPositions.push({
+                    index: oneToSixHourIndex,
+                    text: unixToShortJST(allBands[oneToSixHourIndex].bandId),
+                    type: 'future'
+                });
+                debugLog(`Label 3: Index ${oneToSixHourIndex} - ${unixToShortJST(allBands[oneToSixHourIndex].bandId)} (1-6 Hour first)`);
+            }
+
+            // 4. Last band of 7-15 Hour tileset
+            if (allBands.length > 0) {
+                labelPositions.push({
+                    index: allBands.length - 1,
+                    text: unixToShortJST(allBands[allBands.length - 1].bandId),
+                    type: 'future'
+                });
+                debugLog(`Label 4: Index ${allBands.length - 1} - ${unixToShortJST(allBands[allBands.length - 1].bandId)} (7-15 Hour last)`);
+            }
+
+            // Create labels
+            labelPositions.forEach(pos => {
+                const label = document.createElement('div');
+                label.className = 'time-label';
+
+                if (pos.type === 'present') {
+                    label.classList.add('special');
+                } else if (pos.type === 'past') {
+                    label.classList.add('highlight');
+                }
+
+                label.textContent = pos.text;
+                label.style.position = 'absolute';
+                label.style.left = `${(pos.index / (allBands.length - 1)) * 100}%`;
+                label.style.transform = 'translateX(-50%)';
+                labelsContainer.appendChild(label);
+            });
+
+            debugLog(`✓ Created ${labelPositions.length} time labels`);
+        }
+
+        // Update time label highlighting
+        function updateTimeLabelHighlight(index) {
+            const labels = document.querySelectorAll('.time-label');
+            labels.forEach(label => {
+                label.classList.remove('highlight');
+            });
+        }
+
+        // Get Japanese description based on precipitation value
+        function getJapaneseDescription(value) {
+            if (value === 0) return "雨なし";
+            if (value < 2) return "しとしとした雨";
+            if (value < 10) return "ポツポツ";
+            if (value < 20) return "ざーざーの雨";
+            if (value < 30) return "どしゃ降り";
+            if (value < 50) return "バケツをひっくり返したような雨";
+            if (value < 80) return "滝のような雨";
+            return "息苦しい、恐怖を感じる雨";
+        }
+
+        // Update time display with category
+        function updateTimeDisplay() {
+            if (allBands.length > 0 && currentBandIndex < allBands.length) {
+                const band = allBands[currentBandIndex];
+                const timeStr = unixToJST(band.bandId);
+                const category = getTimeCategory(currentBandIndex);
+                document.getElementById('time-display').textContent = `${timeStr} ${category}`;
+            }
+        }
+
+        // Update raster band - VISIBILITY-BASED (NO preloading logic)
+        function updateRasterBand(index) {
+            if (allBands.length === 0 || index >= allBands.length) return;
+
+            currentBandIndex = index;
+            const band = allBands[index];
+
+            // Simple visibility switching - NO preloading of adjacent tilesets
+            if (currentVisibleTilesetId !== band.tilesetId) {
+                debugLog(`🔄 Switching tileset: ${currentVisibleTilesetId} → ${band.tilesetId}`);
+
+                tilesets.forEach(tileset => {
+                    const layerId = `rain-layer-${tileset.id}`;
+                    if (map.getLayer(layerId)) {
+                        const visibility = (tileset.id === band.tilesetId) ? 'visible' : 'none';
+                        map.setLayoutProperty(layerId, 'visibility', visibility);
+                    }
+                });
+
+                currentVisibleTilesetId = band.tilesetId;
+            }
+
+            // Always update the band for the currently visible layer
+            const activeLayerId = `rain-layer-${band.tilesetId}`;
+            if (map.getLayer(activeLayerId)) {
+                map.setPaintProperty(activeLayerId, 'raster-array-band', band.bandId.toString());
+            }
+
+            updateTimeDisplay();
+            updateTimeLabelHighlight(index);
+        }
+
+        // Load all tileset metadata and bands with STRICT ORDER
+        async function loadAllTilesets() {
+            document.getElementById('loading').style.display = 'block';
+
+            // Temporary storage for bands by tileset
+            const bandsByTileset = {};
+
+            await loadTemperatureBands();
+
+            let lastNowcastBandId = null;
+
+            // Load bands for each tileset
+            for (const tileset of tilesets) {
+                try {
+                    const response = await fetch(`https://api.mapbox.com/v4/${tileset.id}.json?secure&access_token=${mapboxgl.accessToken}`);
+                    const metadata = await response.json();
+
+                    if (metadata.raster_layers && metadata.raster_layers.length > 0) {
+                        const layer = metadata.raster_layers[0];
+                        const layerName = layer.name || 'precipitation';
+                        let bands = [];
+
+                        if (layer.bands && Array.isArray(layer.bands)) {
+                            bands = layer.bands;
+                        } else if (layer.fields && layer.fields.bands && Array.isArray(layer.fields.bands)) {
+                            bands = layer.fields.bands;
+                        }
+
+                        let sortedBands = bands
+                            .map(b => {
+                                if (typeof b === 'object' && b.band_id) {
+                                    return parseInt(b.band_id);
+                                } else if (typeof b === 'string' || typeof b === 'number') {
+                                    return parseInt(b);
+                                }
+                                return NaN;
+                            })
+                            .filter(b => !isNaN(b))
+                            .sort((a, b) => a - b);
+
+                        // Special handling for 1-6 hour tileset - FILTER OUT ALL STALE BANDS
+                        if (tileset.id === 'mapbox.weather-jp-rain-1-6' && sortedBands.length > 0) {
+                            debugLog(`1-6 rain bands BEFORE filtering: [${sortedBands.slice(0, 5).join(', ')}, ...]`);
+                            debugLog(`Last nowcast band: ${lastNowcastBandId}`);
+
+                            if (lastNowcastBandId !== null) {
+                                const originalCount = sortedBands.length;
+                                // Keep ONLY bands that are strictly greater than last nowcast band
+                                sortedBands = sortedBands.filter(b => b > lastNowcastBandId);
+                                const removedCount = originalCount - sortedBands.length;
+
+                                debugLog(`⚠️ Filtered out ${removedCount} stale bands (≤ ${lastNowcastBandId})`);
+                                debugLog(`✓ Kept ${sortedBands.length} fresh bands (> ${lastNowcastBandId})`);
+                            }
+
+                            if (sortedBands.length > 0) {
+                                debugLog(`1-6 rain bands AFTER filtering: [${sortedBands.slice(0, 5).join(', ')}, ...]`);
+                                debugLog(`First valid band: ${sortedBands[0]} (${unixToShortJST(sortedBands[0])})`);
+                            } else {
+                                debugLog(`⚠️ WARNING: All 1-6 Hour bands were filtered out!`);
+                            }
+                        }
+
+                        // Skip last band of Past 60min tileset
+                        if (tileset.id === 'mapbox.weather-jp-nowcast-last-60m' && sortedBands.length > 0) {
+                            debugLog(`Past 60min bands BEFORE skip last: last 3 = ${sortedBands.slice(-3).join(', ')}`);
+                            sortedBands = sortedBands.slice(0, -1);
+                            debugLog(`Past 60min bands AFTER skip last: new last 3 = ${sortedBands.slice(-3).join(', ')}`);
+                        }
+
+                        // Store last band ID of nowcast tileset
+                        if (tileset.id === 'mapbox.weather-jp-nowcast' && sortedBands.length > 0) {
+                            lastNowcastBandId = sortedBands[sortedBands.length - 1];
+                            debugLog(`📌 Stored last nowcast band ID: ${lastNowcastBandId}`);
+                        }
+
+                        // Store bands for this tileset
+                        bandsByTileset[tileset.id] = sortedBands.map(bandId => ({
+                            tilesetId: tileset.id,
+                            tilesetName: tileset.name,
+                            layerName: layerName,
+                            bandId: bandId,
+                            order: tileset.order
+                        }));
+
+                        debugLog(`✓ Loaded ${sortedBands.length} bands for ${tileset.name}`);
+                    }
+                } catch (error) {
+                    console.error(`Error loading ${tileset.id}:`, error);
+                    debugLog(`❌ Error loading ${tileset.id}: ${error.message}`);
+                }
+            }
+
+            // STRICT ORDER: Assemble bands in tileset order (NOT by timestamp)
+            debugLog(`========== APPLYING STRICT TILESET ORDER ==========`);
+            allBands = [];
+
+            // Add bands in strict tileset order
+            tilesets.sort((a, b) => a.order - b.order).forEach(tileset => {
+                if (bandsByTileset[tileset.id]) {
+                    const bandsForTileset = bandsByTileset[tileset.id];
+                    // Sort bands within this tileset by timestamp
+                    bandsForTileset.sort((a, b) => a.bandId - b.bandId);
+                    allBands.push(...bandsForTileset);
+
+                    debugLog(`  Added ${bandsForTileset.length} bands from ${tileset.name}`);
+                    if (bandsForTileset.length > 0) {
+                        debugLog(`    First: ${bandsForTileset[0].bandId} (${unixToShortJST(bandsForTileset[0].bandId)})`);
+                        debugLog(`    Last: ${bandsForTileset[bandsForTileset.length - 1].bandId} (${unixToShortJST(bandsForTileset[bandsForTileset.length - 1].bandId)})`);
+                    }
+                }
+            });
+
+            debugLog(`✓ Total bands assembled: ${allBands.length}`);
+            debugLog(`  Timeline order: Past 60min → Nowcast → 1-6 Hour → 7-15 Hour`);
+            debugLog(`====================================================`);
+
+            const nowcastIndex = allBands.findIndex(b => b.tilesetId === 'mapbox.weather-jp-nowcast');
+            nowcastStartIndex = nowcastIndex >= 0 ? nowcastIndex : 0;
+            currentBandIndex = nowcastStartIndex;
+
+            const slider = document.getElementById('time-slider');
+            slider.min = 0;
+            slider.max = allBands.length - 1;
+            slider.value = currentBandIndex;
+
+            debugLog(`Loaded ${allBands.length} bands, 現在 at index ${nowcastStartIndex}`);
+
+            createTimeLabels();
+            updateRasterBand(currentBandIndex);
+
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // Map load event
+        map.on('style.load', async () => {
+            const layers = map.getStyle().layers;
+            const firstSymbolLayerId = layers.find(layer => layer.type === 'symbol')?.id;
+
+            for (const tileset of tilesets) {
+                map.addSource(`rain-source-${tileset.id}`, {
+                    type: 'raster-array',
+                    url: `mapbox://${tileset.id}`,
+                    tileSize: 256
+                });
+
+                const layerConfig = {
+                    id: `rain-layer-${tileset.id}`,
+                    type: 'raster',
+                    source: `rain-source-${tileset.id}`,
+                    paint: {
+                        'raster-array-band': '0',
+                        'raster-color': rasterColorExpression,
+                        'raster-color-range': [0, 100],
+                        'raster-opacity': 0.85
+                    },
+                    layout: {
+                        visibility: 'none'
+                    }
+                };
+
+                if (firstSymbolLayerId) {
+                    map.addLayer(layerConfig, firstSymbolLayerId);
+                } else {
+                    map.addLayer(layerConfig);
+                }
+            }
+
+            await loadAllTilesets();
+            debugLog('Setup complete - OPTIMIZED tile loading enabled');
+        });
+
+        document.getElementById('time-slider').addEventListener('input', (e) => {
+            const index = parseInt(e.target.value);
+            updateRasterBand(index);
+        });
+
+        // Create popup instance
+        popup = new mapboxgl.Popup({
+            closeButton: false,
+            closeOnClick: false
+        });
+
+        // CLICK EVENT - Show popup on map click
+        map.on('click', async (e) => {
+            debugLog(`========== MAP CLICKED ==========`);
+            debugLog(`Click position: lng=${e.lngLat.lng.toFixed(4)}, lat=${e.lngLat.lat.toFixed(4)}`);
+
+            if (allBands.length === 0 || currentBandIndex >= allBands.length) {
+                debugLog(`Cannot show popup: bands not loaded`);
+                return;
+            }
+
+            const band = allBands[currentBandIndex];
+            const sourceId = `rain-source-${band.tilesetId}`;
+
+            const shouldFetchGeocoding = hasMovedBeyondGeocodingThreshold(e.lngLat.lng, e.lngLat.lat);
+            const shouldFetchTemperature = hasMovedBeyondTemperatureThreshold(e.lngLat.lng, e.lngLat.lat);
+            const shouldFetchFutureForecast = hasMovedBeyondFutureForecastThreshold(e.lngLat.lng, e.lngLat.lat);
+
+            if (shouldFetchGeocoding) {
+                lastGeocodingLng = e.lngLat.lng;
+                lastGeocodingLat = e.lngLat.lat;
+            }
+
+            if (shouldFetchTemperature) {
+                lastTemperatureLng = e.lngLat.lng;
+                lastTemperatureLat = e.lngLat.lat;
+
+                if (temperatureDebounceTimer) {
+                    clearTimeout(temperatureDebounceTimer);
+                }
+            }
+
+            if (shouldFetchFutureForecast) {
+                lastFutureForecastLng = e.lngLat.lng;
+                lastFutureForecastLat = e.lngLat.lat;
+
+                if (futureForecastDebounceTimer) {
+                    clearTimeout(futureForecastDebounceTimer);
+                }
+            }
+
+            try {
+                // Query current precipitation
+                const rasterResult = await map.queryRasterValue(
+                    sourceId,
+                    e.lngLat,
+                    {
+                        layerName: 'precipitation',
+                        bands: [band.bandId.toString()]
+                    }
+                );
+
+                debugLog(`🎯 Current band query: ${band.tilesetName} | Band ${band.bandId} (${unixToShortJST(band.bandId)})`);
+
+                if (rasterResult && rasterResult.precipitation && rasterResult.precipitation[band.bandId.toString()]) {
+                    const bandData = rasterResult.precipitation[band.bandId.toString()];
+
+                    if (bandData && bandData.length > 0) {
+                        const value = bandData[0];
+
+                        debugLog(`  ✓ Result: ${value !== null ? value.toFixed(2) + ' mm/h' : 'null'}`);
+
+                        if (value !== null && value !== undefined) {
+                            const description = getJapaneseDescription(value);
+
+                            let cityName = lastCityName || '取得中...';
+                            if (shouldFetchGeocoding) {
+                                cityName = await getCityName(e.lngLat.lng, e.lngLat.lat);
+                                lastCityName = cityName;
+                            }
+
+                            // Show popup with current precipitation
+                            let popupHTML = `<div class="popup-location">${cityName}</div>`;
+                            popupHTML += `<div><strong>降水強度:</strong> ${value.toFixed(2)} mm/h</div>`;
+                            popupHTML += `<div class="popup-description">${description}</div>`;
+
+                            popup.setLngLat(e.lngLat)
+                                .setHTML(popupHTML)
+                                .addTo(map);
+
+                            // Temperature timer (0.5s delay)
+                            if (shouldFetchTemperature) {
+                                debugLog(`Timer SET for temperature - will fire in 0.5s`);
+                                temperatureDebounceTimer = setTimeout(async () => {
+                                    debugLog(`✓ Timer FIRED - fetching temperature`);
+                                    const tempData = await getTemperature(e.lngLat.lng, e.lngLat.lat, band.bandId);
+
+                                    if (tempData && tempData.value !== null) {
+                                        let updatedPopupHTML = `<div class="popup-location">${cityName}</div>`;
+                                        updatedPopupHTML += `<div class="popup-temperature">気温: ${tempData.value.toFixed(1)}°C <span class="popup-temperature-time">(${tempData.time})</span></div>`;
+                                        updatedPopupHTML += `<div><strong>降水強度:</strong> ${value.toFixed(2)} mm/h</div>`;
+                                        updatedPopupHTML += `<div class="popup-description">${description}</div>`;
+
+                                        popup.setHTML(updatedPopupHTML);
+                                    }
+                                }, 500);
+                            }
+
+                            // Future forecast timer (1s delay, only if at 現在 or future)
+                            if (shouldFetchFutureForecast && currentBandIndex >= nowcastStartIndex) {
+                                debugLog(`Timer SET for future forecast - will fire in 1s`);
+                                futureForecastDebounceTimer = setTimeout(async () => {
+                                    debugLog(`✓ Timer FIRED - fetching future forecast`);
+
+                                    const totalFuture = await queryFutureForecast(e.lngLat.lng, e.lngLat.lat, currentBandIndex);
+                                    const rainStopsSoon = value > 0 ? await checkRainStopsWithin3Bands(e.lngLat.lng, e.lngLat.lat, currentBandIndex) : false;
+
+                                    let forecastMessage = '';
+
+                                    if (value === 0 && totalFuture === 0) {
+                                        forecastMessage = 'しばらく雨は降りません';
+                                        debugLog(`📢 Forecast message: ${forecastMessage}`);
+                                    } else if (value > 0 && rainStopsSoon) {
+                                        forecastMessage = 'もうすぐ雨が止みます';
+                                        debugLog(`📢 Forecast message: ${forecastMessage}`);
+                                    } else {
+                                        debugLog(`📢 No forecast message (current: ${value}, future: ${totalFuture}, stops soon: ${rainStopsSoon})`);
+                                    }
+
+                                    if (forecastMessage) {
+                                        let updatedPopupHTML = popup.getElement().querySelector('.mapboxgl-popup-content').innerHTML;
+
+                                        const tempDiv = document.createElement('div');
+                                        tempDiv.innerHTML = updatedPopupHTML;
+                                        const existingForecast = tempDiv.querySelector('.popup-forecast');
+                                        if (existingForecast) {
+                                            existingForecast.remove();
+                                        }
+
+                                        updatedPopupHTML = tempDiv.innerHTML;
+                                        updatedPopupHTML += `<div class="popup-forecast">${forecastMessage}</div>`;
+
+                                        popup.setHTML(updatedPopupHTML);
+                                    }
+                                }, 1000);
+                            }
+
+                            return;
+                        }
+                    }
+                } else {
+                    debugLog(`  ✗ No result for current band`);
+                }
+
+                popup.remove();
+
+            } catch (error) {
+                debugLog(`❌ Error in popup query: ${error.message}`);
+                popup.remove();
+            }
+        });
+
+        // Close popup and clear timers when mouse leaves map
+        map.on('mouseout', () => {
+            if (temperatureDebounceTimer) {
+                clearTimeout(temperatureDebounceTimer);
+                temperatureDebounceTimer = null;
+            }
+            if (futureForecastDebounceTimer) {
+                clearTimeout(futureForecastDebounceTimer);
+                futureForecastDebounceTimer = null;
+            }
+        });
+
+        // Add navigation controls
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    </script>
+</body>
+</html>
