@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>tile size visualizer</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+
+    #size-display {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background-color: rgba(255, 255, 255, 0.9);
+      color: #333;
+      border: 1px solid #ccc;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 18px;
+      white-space: pre-line;
+      text-align: right;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      z-index: 9999;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div id="size-display"></div>
+
+  <script>
+    const token = 'pk.eyJ1IjoianRvZ2FzaGkiLCJhIjoiY21pcGcwemUyMDR4ODNoc2EyNXhiZHpoYSJ9.RO3RqSrLbOPj_Zrt5Aocqg';
+    const style = 'mapbox://styles/jtogashi/cmj70hbos004c01sz3urvdrwh'; // nothing
+
+    const display = document.getElementById('size-display');
+
+    const tileSize = 512;
+    const maxTileCacheSize = 12;
+
+    const getWindowSize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      console.log(`window w: ${w}px, h: ${h}px`);
+      const wTileCount = Math.ceil(w / tileSize);
+      const hTileCount = Math.ceil(h / tileSize);
+      console.log(`estimated tile count: w: ${wTileCount}, h: ${hTileCount}`);
+      return {
+        w: w,
+        h: h,
+        wTileCount: wTileCount,
+        hTileCount: hTileCount,
+        maxTileCacheSize: (wTileCount + 1) * (hTileCount + 1)
+      };
+    }
+
+    const updateSize = () => {
+      const sizes = getWindowSize();
+      display.textContent = `window size: ${sizes.w}x${sizes.h}\ngl-js tileSize: ${tileSize}\nestimated tile count: ${sizes.wTileCount}x${sizes.hTileCount}`;
+    }
+    updateSize();
+
+    window.addEventListener('resize', updateSize);
+
+    // Precipitation color scale
+    const rasterColorExpression = [
+      'step',
+      ['raster-value'],
+      'rgba(0, 0, 0, 0)',
+      0.05, 'rgba(242, 242, 255, 1)',
+      0.99, 'rgba(160, 210, 255, 1)',
+      4.99, 'rgba(33, 140, 255, 1)',
+      9.99, 'rgba(0, 65, 255, 1)',
+      19.99, 'rgba(250, 245, 0, 1)',
+      29.99, 'rgba(255, 153, 0, 1)',
+      49.99, 'rgba(255, 40, 0, 1)',
+      79.99, 'rgba(180, 0, 104, 1)'
+    ];
+
+    mapboxgl.accessToken = token;
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: style,
+      center: [135.548, 35.881],
+      zoom: 5.5,
+      projection: 'mercator',
+      hash: true,
+      maxTileCacheSize: maxTileCacheSize
+    });
+    map.showTileBoundaries = true;
+    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 40 }), 'bottom-left');
+
+    map.on('load', () => {
+      map.addSource('world', {
+        type: 'raster',
+        url: 'mapbox://mapbox.satellite',
+        tileSize: tileSize
+      });
+
+      map.addLayer({
+        id: 'world-layer',
+        type: 'raster',
+        source: 'world',
+        'source-layer': 'world'
+      });
+
+      const sourceId = 'source-jma-rain-1-6';
+      const sourceLayerId = 'precipitation';
+      const bandId = '1718919000';
+
+      map.addSource(sourceId, {
+        type: 'raster-array',
+        url: `mapbox://jtogashi.rain1-6-20240620203000-tile256`,
+        tileSize: tileSize
+      });
+
+      const layerId = 'layer-jma-rain-1-6';
+
+      const layerConfig = {
+        id: layerId,
+        type: 'raster',
+        source: sourceId,
+        'source-layer': sourceLayerId,
+        paint: {
+          'raster-color': rasterColorExpression,
+          'raster-resampling': 'nearest',
+          'raster-color-range-transition': { duration: 0 }
+        }
+      };
+
+      map.addLayer(layerConfig);
+
+      map.on('click', async (e) => {
+        const rasterValue = await map.queryRasterValue(
+          sourceId,
+          e.lngLat,
+          {
+            layerName: sourceLayerId,
+            bands: [bandId]
+          }
+        );
+
+        if (rasterValue) {
+          const layerValue = rasterValue[sourceLayerId];
+          const bandValue = layerValue[bandId];
+          console.log(bandValue);
+        }
+      });
+
+      map.on('error', (e) => {
+        console.err(e);
+      });
+    });
+  </script>
+
+</body>
+
+</html>
