@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>JMA nowcast GPV vs raster</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <!-- <link href="http://localhost:9966/dist/mapbox-gl.css" rel="stylesheet">
+  <script src="http://localhost:9966/dist/mapbox-gl-unminified.js"></script> -->
+  <link href='https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.css' rel='stylesheet' />
+  <script src='https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.js'></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script>
+    const token = 'pk.eyJ1IjoianRvZ2FzaGkiLCJhIjoiY21pcGcwemUyMDR4ODNoc2EyNXhiZHpoYSJ9.RO3RqSrLbOPj_Zrt5Aocqg';
+    const style = 'mapbox://styles/jtogashi/cmk4rvsg4006201ssh9fiaeqf';
+
+    mapboxgl.accessToken = token;
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: style,
+      center: [135.548, 35.881],
+      zoom: 5.5,
+      maxTileCacheSize: 45,
+      hash: true
+    });
+    map.showTileBoundaries = true;
+
+    map.on('load', (e) => {
+      const sourceIdRasterArray = 'source-nowc-raster-array';
+      const layerIdRasterArray = 'layer-nowc-raster-array';
+      const sourceIdGpv = 'source-nowc-gpv';
+      const layerIdGpv = 'layer-nowc-gpv';
+
+      map.addSource(
+        sourceIdRasterArray,
+        {
+          type: 'raster-array',
+          url: 'mapbox://jtogashi.nowc20260107000000-tile256-z9',
+          tileSize: 256
+        }
+      );
+
+      map.addSource(
+        sourceIdGpv,
+        {
+          type: 'vector',
+          url: 'mapbox://jtogashi.nowc20260107000000-gpv'
+        }
+      );
+
+      map.addLayer({
+        id: layerIdRasterArray,
+        type: 'raster',
+        source: sourceIdRasterArray,
+        'source-layer': 'precipitation',
+        paint: {
+          'raster-color': [
+            "step",
+            ["raster-value"],
+            "rgba(0, 0, 0, 0)",
+            0.09,
+            "rgb(242, 242, 255)", // white 0.1
+            0.9,
+            "rgb(160, 210, 255)", // light blue 1
+            4.9,
+            "rgb(33, 140, 255)", // mid blue 5
+            9.9,
+            "rgb(0, 65, 255)", // blue 10
+            19.9,
+            "rgb(250, 245, 0)", // yellow 20
+            29.9,
+            "rgb(255, 153, 0)", // orange 30
+            49.9,
+            "rgb(255, 40, 0)", // red 50
+            79.9,
+            "rgb(180, 0, 104)" // purple 80
+          ],
+          'raster-resampling': 'nearest',
+          'raster-color-range-transition': { duration: 0 }
+        }
+      });
+
+      map.addLayer({
+        id: layerIdGpv,
+        type: 'circle',
+        source: sourceIdGpv,
+        'source-layer': 'precipitation',
+        paint: {
+          'circle-color': [
+            "step",
+            ["get", "value"],
+            "rgba(0, 0, 0, 0)",
+            0.005,
+            "rgb(242, 242, 255)",
+            0.995,
+            "rgb(160, 210, 255)",
+            4.995,
+            "rgb(33, 140, 255)",
+            9.995,
+            "rgb(0, 65, 255)",
+            19.995,
+            "rgb(250, 245, 0)",
+            29.995,
+            "rgb(255, 153, 0)",
+            49.995,
+            "rgb(255, 40, 0)",
+            79.995,
+            "rgb(180, 0, 104)"
+          ],
+          'circle-stroke-width': 1,
+          'circle-stroke-color': "rgb(0, 174, 0)"
+        }
+      });
+
+      let currentMarker = null;
+
+      map.on('click', async (e) => {
+        const rasterArraySource = map.getSource(sourceIdRasterArray);
+        const precipitationLayer = rasterArraySource.rasterLayers.find((layer) => layer.id === 'precipitation');
+        const bands = precipitationLayer.fields.bands;
+        const targetBand = bands[0];
+
+        const rasterValues = await map.queryRasterValue(
+          sourceIdRasterArray,
+          e.lngLat,
+          {
+            layerName: 'precipitation',
+            bands: targetBand
+          }
+        );
+
+        const rasterValue = rasterValues?.['precipitation']?.[targetBand]?.[0];
+        if (rasterValue) {
+          console.log(`raster value: ${rasterValue}`);
+        }
+
+        const gpvFeatures = map.queryRenderedFeatures(
+          e.point,
+          {
+            target: {
+              layerId: layerIdGpv
+            }
+          }
+        );
+
+        const gpv = gpvFeatures?.[0]?.properties?.value;
+        if (gpv) {
+          console.log(`GPV: ${gpv}`);
+        }
+
+        currentMarker?.remove();
+
+        const popup = new mapboxgl.Popup()
+          .setHTML(`[${Math.floor(e.lngLat.lng * 10000) / 10000}, ${Math.floor(e.lngLat.lat * 10000) / 10000}]<ul><li>raster value: ${rasterValue}</li><li>GPV: ${gpv}</li></ul>`);
+
+        currentMarker = new mapboxgl.Marker()
+          .setLngLat(e.lngLat)
+          .setPopup(popup)
+          .addTo(map);
+
+        currentMarker.togglePopup();
+      });
+
+    });
+
+  </script>
+
+</body>
+
+</html>
