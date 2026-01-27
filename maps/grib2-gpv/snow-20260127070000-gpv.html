@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>snowdepth GPV vs raster</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <!-- <link href="http://localhost:9966/dist/mapbox-gl.css" rel="stylesheet">
+  <script src="http://localhost:9966/dist/mapbox-gl-unminified.js"></script> -->
+  <link href='https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.css' rel='stylesheet' />
+  <script src='https://api.mapbox.com/mapbox-gl-js/v3.18.1/mapbox-gl.js'></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script>
+    const token = 'pk.eyJ1IjoianRvZ2FzaGkiLCJhIjoiY21pcGcwemUyMDR4ODNoc2EyNXhiZHpoYSJ9.RO3RqSrLbOPj_Zrt5Aocqg';
+    const style = 'mapbox://styles/jtogashi/cmk4rvsg4006201ssh9fiaeqf';
+
+    mapboxgl.accessToken = token;
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: style,
+      center: [135.548, 35.881],
+      zoom: 5.5,
+      maxTileCacheSize: 45,
+      hash: true
+    });
+    map.showTileBoundaries = true;
+
+    map.on('load', (e) => {
+      const sourceIdRasterArray = 'source-raster-array';
+      const layerIdRasterArray = 'layer-raster-array';
+      const sourceIdGpv = 'source-gpv';
+      const layerIdGpv = 'layer-gpv';
+
+      map.addSource(
+        sourceIdRasterArray,
+        {
+          type: 'raster-array',
+          url: 'mapbox://jtogashi.snowdepth-20260127070000-ana',
+          tileSize: 256
+        }
+      );
+
+      map.addSource(
+        sourceIdGpv,
+        {
+          type: 'vector',
+          url: 'mapbox://jtogashi.snowdepth-20260127070000-ana-gpv'
+        }
+      );
+
+      map.addLayer({
+        id: layerIdRasterArray,
+        type: 'raster',
+        source: sourceIdRasterArray,
+        'source-layer': 'snowdepth',
+        paint: {
+          'raster-color': [
+            "step",
+            ["raster-value"],
+            "rgba(0, 0, 0, 0)",
+            0.005,
+            "rgb(160, 210, 255)", // light blue 1cm = 0.01m
+            0.045,
+            "rgb(33, 140, 255)", // mid blue 5cm = 0.05m
+            0.195,
+            "rgb(0, 65, 255)", // blue 20cm = 0.20m
+            0.495,
+            "rgb(250, 245, 0)", // yellow 50cm = 0.5m
+            0.995,
+            "rgb(255, 153, 0)", // orange 100cm = 1.0m
+            1.495,
+            "rgb(255, 40, 0)", // red 150cm = 1.5m
+            1.995,
+            "rgb(180, 0, 104)" // purple 200cm = 2.0m
+          ],
+          'raster-resampling': 'nearest',
+          'raster-color-range-transition': { duration: 0 }
+        }
+      });
+
+      map.addLayer({
+        id: layerIdGpv,
+        type: 'circle',
+        source: sourceIdGpv,
+        'source-layer': 'snowdepth',
+        paint: {
+          'circle-color': [
+            "step",
+            ["get", "value"],
+            "rgba(0, 0, 0, 0)",
+            0.005,
+            "rgb(160, 210, 255)", // light blue 1cm = 0.01m
+            0.045,
+            "rgb(33, 140, 255)", // mid blue 5cm = 0.05m
+            0.195,
+            "rgb(0, 65, 255)", // blue 20cm = 0.20m
+            0.495,
+            "rgb(250, 245, 0)", // yellow 50cm = 0.5m
+            0.995,
+            "rgb(255, 153, 0)", // orange 100cm = 1.0m
+            1.495,
+            "rgb(255, 40, 0)", // red 150cm = 1.5m
+            1.995,
+            "rgb(180, 0, 104)" // purple 200cm = 2.0m
+          ],
+          'circle-stroke-width': 1,
+          'circle-stroke-color': "rgb(0, 174, 0)"
+        }
+      });
+
+
+      let currentMarker = null;
+
+      map.on('click', async (e) => {
+        const rasterArraySource = map.getSource(sourceIdRasterArray);
+        const sourceLayer = rasterArraySource.rasterLayers.find((layer) => layer.id === 'snowdepth');
+        const bands = sourceLayer.fields.bands;
+        const targetBand = bands[0];
+
+        const rasterValues = await map.queryRasterValue(
+          sourceIdRasterArray,
+          e.lngLat,
+          {
+            layerName: 'snowdepth',
+            bands: targetBand
+          }
+        );
+
+        const rasterValue = rasterValues?.['snowdepth']?.[targetBand]?.[0];
+        if (rasterValue) {
+          console.log(`raster value: ${rasterValue}`);
+        }
+
+        const gpvFeatures = map.queryRenderedFeatures(
+          e.point,
+          {
+            target: {
+              layerId: layerIdGpv
+            }
+          }
+        );
+
+        const gpv = gpvFeatures?.[0]?.properties?.value;
+        if (gpv) {
+          console.log(`GPV: ${gpv}`);
+        }
+
+        currentMarker?.remove();
+
+        const popup = new mapboxgl.Popup()
+          .setHTML(`[${Math.floor(e.lngLat.lng * 10000) / 10000}, ${Math.floor(e.lngLat.lat * 10000) / 10000}]<ul><li>raster value: ${rasterValue}</li><li>GPV: ${gpv}</li></ul>`);
+
+        currentMarker = new mapboxgl.Marker()
+          .setLngLat(e.lngLat)
+          .setPopup(popup)
+          .addTo(map);
+
+        currentMarker.togglePopup();
+      });
+
+    });
+
+  </script>
+
+</body>
+
+</html>
