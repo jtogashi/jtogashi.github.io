@@ -96,6 +96,57 @@
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
+
+    #request-info {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1;
+      width: 420px;
+      max-height: calc(100% - 20px);
+      display: flex;
+      flex-direction: column;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      font-size: 12px;
+    }
+
+    #request-info .section-header {
+      padding: 6px 12px;
+      font-weight: bold;
+      border-bottom: 1px solid #eee;
+      font-size: 12px;
+    }
+
+    #request-url {
+      padding: 8px 12px;
+      border-bottom: 1px solid #eee;
+      word-break: break-all;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+      font-size: 11px;
+      color: #333;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    #response-json {
+      padding: 8px 12px;
+      margin: 0;
+      overflow: auto;
+      flex: 1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+      font-size: 11px;
+      color: #333;
+      white-space: pre;
+      max-height: 50vh;
+    }
+
+    #request-info .empty {
+      padding: 8px 12px;
+      color: #888;
+    }
   </style>
 </head>
 
@@ -110,6 +161,12 @@
   <div id="feature-list">
     <div class="header">Features</div>
     <div class="empty">Click on the map</div>
+  </div>
+  <div id="request-info">
+    <div class="section-header">Request URL</div>
+    <div id="request-url" class="empty">Click on the map</div>
+    <div class="section-header">Response JSON</div>
+    <pre id="response-json" class="empty">Click on the map</pre>
   </div>
 
   <script>
@@ -133,6 +190,8 @@
     const featureListEl = document.getElementById('feature-list');
     const radiusSliderEl = document.getElementById('radius-slider');
     const radiusValueEl = document.getElementById('radius-value');
+    const requestUrlEl = document.getElementById('request-url');
+    const responseJsonEl = document.getElementById('response-json');
     radiusSliderEl.addEventListener('input', () => {
       radiusValueEl.textContent = radiusSliderEl.value;
     });
@@ -227,9 +286,14 @@
       const layers = 'poi_label';
       const geometry = 'point';
       const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=${radius}&limit=${limit}&layers=${layers}&access_token=${token}`;
+      requestUrlEl.classList.remove('empty');
+      requestUrlEl.textContent = url;
+      responseJsonEl.classList.remove('empty');
+      responseJsonEl.textContent = 'Loading...';
       const matchTypes = ['Mall', 'Department store', 'Communications tower', 'Castle', 'Zoo', 'Townhall'];
       fetch(url).then(response => {
         response.json().then(json => {
+          responseJsonEl.textContent = JSON.stringify(json, null, 2);
           const features = json.features
             .map(feature => ({
               name: feature.properties.name,
