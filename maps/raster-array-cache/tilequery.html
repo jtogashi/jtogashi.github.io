@@ -51,10 +51,19 @@
     #feature-list li {
       padding: 6px 12px;
       border-bottom: 1px solid #f0f0f0;
+      background: rgba(63, 177, 206, 0.12);
+      border-left: 3px solid #3FB1CE;
+      padding-left: 9px;
     }
 
     #feature-list li:last-child {
       border-bottom: none;
+    }
+
+    #feature-list li.matched {
+      background: rgba(229, 57, 53, 0.12);
+      border-left-color: #e53935;
+      font-weight: bold;
     }
 
     #feature-list .empty {
@@ -107,9 +116,13 @@
       }
 
       const ul = document.createElement('ul');
-      features.forEach(({ name }) => {
+      const sorted = [...features].sort((a, b) => Number(b.matched) - Number(a.matched));
+      sorted.forEach(({ name, matched }) => {
         const li = document.createElement('li');
         li.textContent = name;
+        if (matched) {
+          li.classList.add('matched');
+        }
         ul.appendChild(li);
       });
       featureListEl.appendChild(ul);
@@ -136,28 +149,26 @@
       const layers = 'poi_label';
       const geometry = 'point';
       const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=${radius}&limit=${limit}&layers=${layers}&access_token=${token}`;
+      const matchTypes = ['Mall', 'Department store', 'Communications tower'];
       fetch(url).then(response => {
         response.json().then(json => {
-          const matched = json.features
-            .filter(feature => {
-              const type = feature.properties.type;
-              return ['Mall', 'Department store', 'Communications tower'].includes(type);
-            })
+          const features = json.features
             .map(feature => ({
               name: feature.properties.name,
-              coordinates: feature.geometry.coordinates
+              coordinates: feature.geometry.coordinates,
+              matched: matchTypes.includes(feature.properties.type)
             }))
             .filter(({ name }) => name);
 
-          matched.forEach(({ name, coordinates }) => {
-            const marker = new mapboxgl.Marker()
+          features.forEach(({ name, coordinates, matched }) => {
+            const marker = new mapboxgl.Marker({ color: matched ? '#e53935' : '#3FB1CE' })
               .setLngLat(coordinates)
               .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(name))
               .addTo(map);
             markers.add(marker);
           });
 
-          renderFeatureList(matched);
+          renderFeatureList(features);
         });
       });
 
