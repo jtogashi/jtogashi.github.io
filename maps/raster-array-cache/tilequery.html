@@ -275,6 +275,9 @@
           return;
         }
       }
+      if (centerMarker && centerMarker.getElement().contains(target)) {
+        return;
+      }
 
       markers.forEach(marker => {
         marker.remove();
@@ -290,7 +293,11 @@
       }
       centerMarker = new mapboxgl.Marker({ color: '#888' })
         .setLngLat([lng, lat])
+        .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Query point'))
         .addTo(map);
+      centerMarker.getElement().addEventListener('click', () => {
+        closeOtherPopups(centerMarker);
+      });
 
       const circleSource = map.getSource('radius-circle');
       if (circleSource) {
