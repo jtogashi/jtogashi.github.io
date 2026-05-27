@@ -7,7 +7,7 @@
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.js"></script>
-  <!-- <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script> -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
   <style>
     body {
       margin: 0;
@@ -24,7 +24,7 @@
     #feature-list {
       position: absolute;
       top: 10px;
-      right: 10px;
+      left: 10px;
       z-index: 1;
       max-height: calc(100% - 20px);
       width: 240px;
@@ -70,14 +70,46 @@
       padding: 8px 12px;
       color: #888;
     }
+
+    #radius-control {
+      position: absolute;
+      top: 10px;
+      left: 300px;
+      z-index: 1;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #radius-control input {
+      width: 160px;
+    }
+
+    #radius-value {
+      min-width: 32px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
+  <div id="radius-control">
+    <label for="radius-slider">radius</label>
+    <input id="radius-slider" type="range" min="0" max="100" step="10" value="100">
+    <span id="radius-value">100</span>
+    <span>m</span>
+  </div>
   <div id="feature-list">
     <div class="header">Features</div>
-    <div class="empty">Right-click (or long-press) on the map</div>
+    <div class="empty">Click on the map</div>
   </div>
 
   <script>
@@ -97,7 +129,36 @@
     map.setLanguage('ja');
 
     const markers = new Set();
+    let centerMarker = null;
     const featureListEl = document.getElementById('feature-list');
+    const radiusSliderEl = document.getElementById('radius-slider');
+    const radiusValueEl = document.getElementById('radius-value');
+    radiusSliderEl.addEventListener('input', () => {
+      radiusValueEl.textContent = radiusSliderEl.value;
+    });
+
+    const emptyFc = { type: 'FeatureCollection', features: [] };
+    map.on('load', () => {
+      map.addSource('radius-circle', { type: 'geojson', data: emptyFc });
+      map.addLayer({
+        id: 'radius-circle-fill',
+        type: 'fill',
+        source: 'radius-circle',
+        paint: {
+          'fill-color': '#888',
+          'fill-opacity': 0.15
+        }
+      });
+      map.addLayer({
+        id: 'radius-circle-line',
+        type: 'line',
+        source: 'radius-circle',
+        paint: {
+          'line-color': '#555',
+          'line-width': 1.5
+        }
+      });
+    });
 
     const formatDistance = (distance) => `${(Math.floor(distance * 100) / 100).toFixed(2)} m`;
 
@@ -146,7 +207,22 @@
 
       const lng = e.lngLat.lng;
       const lat = e.lngLat.lat;
-      const radius = 100;
+      const radius = Number(radiusSliderEl.value);
+
+      if (centerMarker) {
+        centerMarker.remove();
+      }
+      centerMarker = new mapboxgl.Marker({ color: '#888' })
+        .setLngLat([lng, lat])
+        .addTo(map);
+
+      const circleSource = map.getSource('radius-circle');
+      if (circleSource) {
+        circleSource.setData(radius > 0
+          ? turf.circle([lng, lat], radius, { units: 'meters', steps: 96 })
+          : emptyFc);
+      }
+
       const limit = 50;
       const layers = 'poi_label';
       const geometry = 'point';
