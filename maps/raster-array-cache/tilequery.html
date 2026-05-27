@@ -20,11 +20,56 @@
       bottom: 0;
       width: 100%;
     }
+
+    #feature-list {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1;
+      max-height: calc(100% - 20px);
+      width: 240px;
+      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      font-size: 13px;
+    }
+
+    #feature-list .header {
+      padding: 8px 12px;
+      font-weight: bold;
+      border-bottom: 1px solid #eee;
+    }
+
+    #feature-list ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    #feature-list li {
+      padding: 6px 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    #feature-list li:last-child {
+      border-bottom: none;
+    }
+
+    #feature-list .empty {
+      padding: 8px 12px;
+      color: #888;
+    }
   </style>
 </head>
 
 <body>
   <div id="map"></div>
+  <div id="feature-list">
+    <div class="header">Features</div>
+    <div class="empty">Right-click (or long-press) on the map</div>
+  </div>
 
   <script>
     const token = 'pk.eyJ1IjoianRvZ2FzaGkiLCJhIjoiY21pcGcwemUyMDR4ODNoc2EyNXhiZHpoYSJ9.RO3RqSrLbOPj_Zrt5Aocqg';
@@ -43,11 +88,46 @@
     map.setLanguage('ja');
 
     const markers = new Set();
+    const featureListEl = document.getElementById('feature-list');
+
+    const renderFeatureList = (features) => {
+      featureListEl.textContent = '';
+
+      const header = document.createElement('div');
+      header.className = 'header';
+      header.textContent = 'Features';
+      featureListEl.appendChild(header);
+
+      if (features.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No features found';
+        featureListEl.appendChild(empty);
+        return;
+      }
+
+      const ul = document.createElement('ul');
+      features.forEach(({ name }) => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        ul.appendChild(li);
+      });
+      featureListEl.appendChild(ul);
+    };
 
     map.on('click', (e) => {
+      // Skip when the click landed on an existing marker, so its popup can toggle.
+      const target = e.originalEvent.target;
+      for (const marker of markers) {
+        if (marker.getElement().contains(target)) {
+          return;
+        }
+      }
+
       markers.forEach(marker => {
         marker.remove();
       });
+      markers.clear();
 
       const lng = e.lngLat.lng;
       const lat = e.lngLat.lat;
@@ -58,20 +138,26 @@
       const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=${radius}&limit=${limit}&layers=${layers}&access_token=${token}`;
       fetch(url).then(response => {
         response.json().then(json => {
-          json.features
+          const matched = json.features
             .filter(feature => {
-              const name = feature.properties.name;
-              const coordinates = feature.geometry.coordinates;
               const type = feature.properties.type;
               return ['Mall', 'Department store', 'Communications tower'].includes(type);
             })
-            .forEach(feature => {
-              const name = feature.properties.name;
-              const coordinates = feature.geometry.coordinates;
-              const type = feature.properties.type;
-              console.log(`after filter: ${name}, (${type}) at ${coordinates}`);
-              // no address info
-            });
+            .map(feature => ({
+              name: feature.properties.name,
+              coordinates: feature.geometry.coordinates
+            }))
+            .filter(({ name }) => name);
+
+          matched.forEach(({ name, coordinates }) => {
+            const marker = new mapboxgl.Marker()
+              .setLngLat(coordinates)
+              .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(name))
+              .addTo(map);
+            markers.add(marker);
+          });
+
+          renderFeatureList(matched);
         });
       });
 
