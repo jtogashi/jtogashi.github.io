@@ -54,6 +54,11 @@
       background: rgba(63, 177, 206, 0.12);
       border-left: 3px solid #3FB1CE;
       padding-left: 9px;
+      cursor: pointer;
+    }
+
+    #feature-list li:hover {
+      filter: brightness(0.95);
     }
 
     #feature-list li:last-child {
@@ -221,6 +226,14 @@
 
     const formatDistance = (distance) => `${(Math.floor(distance * 100) / 100).toFixed(2)} m`;
 
+    const closeOtherPopups = (current) => {
+      markers.forEach(m => {
+        if (m !== current && m.getPopup()?.isOpen()) {
+          m.togglePopup();
+        }
+      });
+    };
+
     const renderFeatureList = (features) => {
       featureListEl.textContent = '';
 
@@ -239,12 +252,16 @@
 
       const ul = document.createElement('ul');
       const sorted = [...features].sort((a, b) => a.distance - b.distance);
-      sorted.forEach(({ name, matched, distance }) => {
+      sorted.forEach(({ name, matched, distance, marker }) => {
         const li = document.createElement('li');
         li.textContent = `${name} (${formatDistance(distance)})`;
         if (matched) {
           li.classList.add('matched');
         }
+        li.addEventListener('click', () => {
+          closeOtherPopups(marker);
+          marker.togglePopup();
+        });
         ul.appendChild(li);
       });
       featureListEl.appendChild(ul);
@@ -303,12 +320,17 @@
             }))
             .filter(({ name }) => name);
 
-          features.forEach(({ name, coordinates, matched, distance }) => {
+          features.forEach(feature => {
+            const { name, coordinates, matched, distance } = feature;
             const marker = new mapboxgl.Marker({ color: matched ? '#e53935' : '#3FB1CE' })
               .setLngLat(coordinates)
               .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(`${name} (${formatDistance(distance)})`))
               .addTo(map);
+            marker.getElement().addEventListener('click', () => {
+              closeOtherPopups(marker);
+            });
             markers.add(marker);
+            feature.marker = marker;
           });
 
           renderFeatureList(features);
