@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>single raster-array layer</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.17.0/mapbox-gl.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script> -->
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script>
+    const token = 'pk.eyJ1IjoianRvZ2FzaGkiLCJhIjoiY21pcGcwemUyMDR4ODNoc2EyNXhiZHpoYSJ9.RO3RqSrLbOPj_Zrt5Aocqg';
+    const style = 'mapbox://styles/jtogashi/cmnwyemxi007301svhvgz0r1v';
+
+    mapboxgl.accessToken = token;
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: style,
+      center: [135.548, 35.881],
+      zoom: 5.5,
+      hash: true
+    });
+
+    map.setLanguage('ja');
+
+    const markers = new Set();
+
+    map.on('click', (e) => {
+      markers.forEach(marker => {
+        marker.remove();
+      });
+
+      const lng = e.lngLat.lng;
+      const lat = e.lngLat.lat;
+      const radius = 100;
+      const limit = 50;
+      const layers = 'poi_label';
+      const geometry = 'point';
+      const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=${radius}&limit=${limit}&layers=${layers}&access_token=${token}`;
+      fetch(url).then(response => {
+        response.json().then(json => {
+          json.features
+            .filter(feature => {
+              const name = feature.properties.name;
+              const coordinates = feature.geometry.coordinates;
+              const type = feature.properties.type;
+              return ['Mall', 'Department store', 'Communications tower'].includes(type);
+            })
+            .forEach(feature => {
+              const name = feature.properties.name;
+              const coordinates = feature.geometry.coordinates;
+              const type = feature.properties.type;
+              console.log(`after filter: ${name}, (${type}) at ${coordinates}`);
+              // no address info
+            });
+        });
+      });
+
+      // const found = new Set();
+      // const closeDistinctFeatures = map.querySourceFeatures('composite', {
+      //   sourceLayer: 'poi_label'
+      // }).filter(feature => {
+      //   // filter out far POIs
+      //   const distance = turf.distance(turf.point([e.lngLat.lng, e.lngLat.lat]), turf.point(feature.geometry.coordinates));
+      //   if (distance > 0.1) {
+      //     return false;
+      //   }
+
+      //   // deduplicate by feature ID
+      //   if (found.has(feature.id)) {
+      //     return false;
+      //   }
+
+      //   // cache feature ID
+      //   found.add(feature.id);
+      //   return true;
+      // });
+
+      // closeDistinctFeatures.forEach(feature => {
+      //   const prop = feature.properties;
+      //   const coord = feature.geometry.coordinates;
+      //   console.log(`${prop.name} (${prop.type}) at ${coord}`);
+
+      //   const color = ['Mall', 'Department store'].includes(prop.type) ? '#FF0000' : '#0000FF';
+      //   const marker = new mapboxgl.Marker({
+      //     color: color
+      //   })
+      //     .setLngLat(coord)
+      //     .addTo(map);
+
+      //   markers.add(marker);
+      // });
+    });
+  </script>
+
+</body>
+
+</html>
