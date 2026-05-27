@@ -99,6 +99,8 @@
     const markers = new Set();
     const featureListEl = document.getElementById('feature-list');
 
+    const formatDistance = (distance) => `${(Math.floor(distance * 100) / 100).toFixed(2)} m`;
+
     const renderFeatureList = (features) => {
       featureListEl.textContent = '';
 
@@ -116,10 +118,10 @@
       }
 
       const ul = document.createElement('ul');
-      const sorted = [...features].sort((a, b) => Number(b.matched) - Number(a.matched));
-      sorted.forEach(({ name, matched }) => {
+      const sorted = [...features].sort((a, b) => a.distance - b.distance);
+      sorted.forEach(({ name, matched, distance }) => {
         const li = document.createElement('li');
-        li.textContent = name;
+        li.textContent = `${name} (${formatDistance(distance)})`;
         if (matched) {
           li.classList.add('matched');
         }
@@ -149,21 +151,22 @@
       const layers = 'poi_label';
       const geometry = 'point';
       const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=${radius}&limit=${limit}&layers=${layers}&access_token=${token}`;
-      const matchTypes = ['Mall', 'Department store', 'Communications tower'];
+      const matchTypes = ['Mall', 'Department store', 'Communications tower', 'Castle', 'Zoo', 'Townhall'];
       fetch(url).then(response => {
         response.json().then(json => {
           const features = json.features
             .map(feature => ({
               name: feature.properties.name,
               coordinates: feature.geometry.coordinates,
-              matched: matchTypes.includes(feature.properties.type)
+              matched: matchTypes.includes(feature.properties.type),
+              distance: feature.properties.tilequery.distance
             }))
             .filter(({ name }) => name);
 
-          features.forEach(({ name, coordinates, matched }) => {
+          features.forEach(({ name, coordinates, matched, distance }) => {
             const marker = new mapboxgl.Marker({ color: matched ? '#e53935' : '#3FB1CE' })
               .setLngLat(coordinates)
-              .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(name))
+              .setPopup(new mapboxgl.Popup({ offset: 25 }).setText(`${name} (${formatDistance(distance)})`))
               .addTo(map);
             markers.add(marker);
           });
