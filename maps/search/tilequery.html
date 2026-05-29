@@ -307,15 +307,15 @@
       }
 
       const limit = 50;
-      const layers = 'poi_label,transit_stop_label';
+      const layers = 'poi_label';
       const geometry = 'point';
       const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=${radius}&limit=${limit}&layers=${layers}&access_token=${token}`;
       requestUrlEl.classList.remove('empty');
       requestUrlEl.textContent = url;
       responseJsonEl.classList.remove('empty');
       responseJsonEl.textContent = 'Loading...';
-      const matchTypes = ['Mall', 'Department store', 'Communications tower', 'Castle', 'Zoo', 'Townhall'];
-      const matchStopTypes = ['station'];
+      const matchTypes = ['Mall', 'Department store', 'Communications tower', 'Townhall'];
+      const matchClasses = ['building', 'landmark'];
       fetch(url).then(response => {
         response.json().then(json => {
           responseJsonEl.textContent = JSON.stringify(json, null, 2);
@@ -323,7 +323,7 @@
             .map(feature => ({
               name: feature.properties.name,
               coordinates: feature.geometry.coordinates,
-              matched: matchTypes.includes(feature.properties.type) || matchStopTypes.includes(feature.properties.stop_type),
+              matched: matchTypes.includes(feature.properties.type) || matchClasses.includes(feature.properties.class),
               distance: feature.properties.tilequery.distance
             }))
             .filter(({ name }) => name);
@@ -344,41 +344,6 @@
           renderFeatureList(features);
         });
       });
-
-      // const found = new Set();
-      // const closeDistinctFeatures = map.querySourceFeatures('composite', {
-      //   sourceLayer: 'poi_label'
-      // }).filter(feature => {
-      //   // filter out far POIs
-      //   const distance = turf.distance(turf.point([e.lngLat.lng, e.lngLat.lat]), turf.point(feature.geometry.coordinates));
-      //   if (distance > 0.1) {
-      //     return false;
-      //   }
-
-      //   // deduplicate by feature ID
-      //   if (found.has(feature.id)) {
-      //     return false;
-      //   }
-
-      //   // cache feature ID
-      //   found.add(feature.id);
-      //   return true;
-      // });
-
-      // closeDistinctFeatures.forEach(feature => {
-      //   const prop = feature.properties;
-      //   const coord = feature.geometry.coordinates;
-      //   console.log(`${prop.name} (${prop.type}) at ${coord}`);
-
-      //   const color = ['Mall', 'Department store'].includes(prop.type) ? '#FF0000' : '#0000FF';
-      //   const marker = new mapboxgl.Marker({
-      //     color: color
-      //   })
-      //     .setLngLat(coord)
-      //     .addTo(map);
-
-      //   markers.add(marker);
-      // });
     });
   </script>
 
